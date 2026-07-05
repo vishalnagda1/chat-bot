@@ -1,0 +1,31 @@
+{
+  "name": "@repo/tool-executor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/logger": "workspace:*",
+    "@repo/types": "workspace:*",
+    "@repo/events": "workspace:*",
+    "fastify": "^4.28.0",
+    "@fastify/cors": "^9.0.0",
+    "zod": "^3.23.0",
+    "node-fetch": "^3.3.0"
+  },
+  "devDependencies": {
+    "@repo/tsconfig": "workspace:*",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0",
+    "typescript": "^5.6.0"
+  }
+}

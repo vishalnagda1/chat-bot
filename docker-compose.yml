@@ -1,0 +1,129 @@
+name: chat-bot
+
+x-service-defaults: &service-defaults
+  build:
+    context: .
+    target: dev
+  restart: unless-stopped
+  env_file: .env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: chatbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d chatbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  auth:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: apps/auth/Dockerfile
+      target: dev
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./apps/auth:/app/apps/auth
+      - /app/node_modules
+    command: pnpm --filter @repo/auth dev
+
+  builder:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: apps/builder/Dockerfile
+      target: dev
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./apps/builder:/app/apps/builder
+      - /app/node_modules
+    command: pnpm --filter @repo/builder dev
+
+  chat-engine:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: apps/chat-engine/Dockerfile
+      target: dev
+    ports:
+      - "3003:3000"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - ./apps/chat-engine:/app/apps/chat-engine
+      - /app/node_modules
+    command: pnpm --filter @repo/chat-engine dev
+
+  tool-executor:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: apps/tool-executor/Dockerfile
+      target: dev
+    ports:
+      - "3004:3000"
+    volumes:
+      - ./apps/tool-executor:/app/apps/tool-executor
+      - /app/node_modules
+    command: pnpm --filter @repo/tool-executor dev
+
+  deployment:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: apps/deployment/Dockerfile
+      target: dev
+    ports:
+      - "3005:3000"
+    volumes:
+      - ./apps/deployment:/app/apps/deployment
+      - /app/node_modules
+    command: pnpm --filter @repo/deployment dev
+
+  analytics:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: apps/analytics/Dockerfile
+      target: dev
+    ports:
+      - "3006:3000"
+    volumes:
+      - ./apps/analytics:/app/apps/analytics
+      - /app/node_modules
+    command: pnpm --filter @repo/analytics dev
+
+volumes:
+  pgdata:
+  redisdata:
