@@ -134,3 +134,58 @@ export const tools = pgTable("tools", {
   parametersSchema: jsonb("parameters_schema"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Message role enum
+export const messageRoleEnum = pgEnum("message_role", ["user", "assistant", "system"]);
+
+// End users table (people chatting with bots)
+export const endUsers = pgTable("end_users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  botId: uuid("bot_id")
+    .references(() => bots.id)
+    .notNull(),
+  externalId: varchar("external_id", { length: 255 }),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Conversations table
+export const conversations = pgTable("conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  botId: uuid("bot_id")
+    .references(() => bots.id)
+    .notNull(),
+  endUserId: uuid("end_user_id")
+    .references(() => endUsers.id),
+  channel: varchar("channel", { length: 50 }).default("web"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
+});
+
+// Messages table
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: uuid("conversation_id")
+    .references(() => conversations.id)
+    .notNull(),
+  role: messageRoleEnum("role").notNull(),
+  content: text("content").notNull(),
+  tokens: integer("tokens"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Tool executions table
+export const toolExecutions = pgTable("tool_executions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  toolId: uuid("tool_id")
+    .references(() => tools.id)
+    .notNull(),
+  conversationId: uuid("conversation_id")
+    .references(() => conversations.id)
+    .notNull(),
+  input: jsonb("input"),
+  output: jsonb("output"),
+  status: varchar("status", { length: 20 }).default("pending"),
+  latencyMs: integer("latency_ms"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
