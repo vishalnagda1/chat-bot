@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import { config } from "./config.js";
+import { authRoutes } from "./routes/auth.js";
+import { orgRoutes } from "./routes/organizations.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -17,6 +19,10 @@ export async function buildApp() {
   app.get("/health", async () => {
     return { status: "ok", service: "auth" };
   });
+
+  // Register routes
+  await app.register(authRoutes);
+  await app.register(orgRoutes);
 
   return app;
 }
