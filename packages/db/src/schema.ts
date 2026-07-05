@@ -4,6 +4,9 @@ import {
   varchar,
   text,
   timestamp,
+  integer,
+  boolean,
+  jsonb,
   pgEnum,
 } from "drizzle-orm/pg-core";
 
@@ -68,5 +71,66 @@ export const sessions = pgTable("sessions", {
     .notNull(),
   token: text("token").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Bot status enum
+export const botStatusEnum = pgEnum("bot_status", ["draft", "published"]);
+
+// Bots table
+export const bots = pgTable("bots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orgId: uuid("org_id")
+    .references(() => organizations.id)
+    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  status: botStatusEnum("status").default("draft").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Bot versions table
+export const botVersions = pgTable("bot_versions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  botId: uuid("bot_id")
+    .references(() => bots.id)
+    .notNull(),
+  version: integer("version").notNull(),
+  systemPrompt: text("system_prompt"),
+  model: varchar("model", { length: 100 }).default("claude-sonnet-5-20250514"),
+  temperature: integer("temperature").default(70), // 0-100 scale
+  maxTokens: integer("max_tokens").default(4096),
+  welcomeMessage: text("welcome_message"),
+  isLive: boolean("is_live").default(false),
+  config: jsonb("config"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Flows table (visual flow editor)
+export const flows = pgTable("flows", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  botId: uuid("bot_id")
+    .references(() => bots.id)
+    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  nodes: jsonb("nodes").default([]),
+  edges: jsonb("edges").default([]),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tools table
+export const tools = pgTable("tools", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  botId: uuid("bot_id")
+    .references(() => bots.id)
+    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(), // api_call, database, code, email, sms, file
+  config: jsonb("config"),
+  parametersSchema: jsonb("parameters_schema"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
