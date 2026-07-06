@@ -1,9 +1,12 @@
+import nodemailer from "nodemailer";
+
 export interface EmailConfig {
   smtpHost: string;
   smtpPort: number;
   username?: string;
   password?: string;
   from: string;
+  secure?: boolean;
 }
 
 export interface EmailInput {
@@ -17,18 +20,36 @@ export async function executeSendEmail(
   config: EmailConfig,
   input: EmailInput
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  // For now, we'll log the email and return success
-  // In production, you'd use nodemailer or similar
-  console.log("Sending email:", {
-    from: config.from,
-    to: input.to,
-    subject: input.subject,
-    body: input.body,
-  });
+  try {
+    const transporter = nodemailer.createTransport({
+      host: config.smtpHost,
+      port: config.smtpPort,
+      secure: config.secure ?? config.smtpPort === 465,
+      auth: config.username
+        ? {
+            user: config.username,
+            pass: config.password,
+          }
+        : undefined,
+    });
 
-  // Simulate email sending
-  return {
-    success: true,
-    messageId: `email-${Date.now()}`,
-  };
+    const recipients = Array.isArray(input.to) ? input.to.join(", ") : input.to;
+
+    const info = await transporter.sendMail({
+      from: config.from,
+      to: recipients,
+      subject: input.subject,
+      [input.html ? "html" : "text"]: input.body,
+    });
+
+    return {
+      success: true,
+      messageId: info.messageId,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: (error as Error).message,
+    };
+  }
 }

@@ -18,14 +18,31 @@ export class ApiConnector {
   }
 
   async processMessage(message: ApiMessage): Promise<{ success: boolean; response?: string; conversationId?: string; error?: string }> {
-    // In production, this would call the chat engine
-    console.log("Processing API message:", message);
-
-    return {
-      success: true,
-      response: `Echo: ${message.message}`,
-      conversationId: message.conversationId || `conv_${Date.now()}`,
-    };
+    try {
+      const chatEngineUrl = process.env.CHAT_ENGINE_URL || "http://localhost:3003";
+      const response = await fetch(`${chatEngineUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          botId: this.config.botId,
+          message: message.message,
+          conversationId: message.conversationId,
+          channel: "api",
+          metadata: message.metadata,
+        }),
+      });
+      const data = await response.json();
+      return {
+        success: true,
+        response: data.data?.message,
+        conversationId: data.data?.conversationId || message.conversationId,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
   }
 
   async sendWebhook(event: string, data: unknown): Promise<{ success: boolean; error?: string }> {

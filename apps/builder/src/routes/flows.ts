@@ -7,6 +7,8 @@ import {
   updateFlow,
   deleteFlow,
   saveFlow,
+  getFlowVersions,
+  getFlowVersionById,
 } from "../services/flow.js";
 
 const flowNodeSchema = z.object({
@@ -108,6 +110,28 @@ export async function flowRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: flow,
+    });
+  });
+
+  // List flow versions
+  app.get("/api/flows/:flowId/versions", async (request, reply) => {
+    const { flowId } = request.params as { flowId: string };
+    const versions = await getFlowVersions(flowId);
+
+    return reply.send({
+      success: true,
+      data: versions,
+    });
+  });
+
+  // Get flow version
+  app.get("/api/flow-versions/:versionId", async (request, reply) => {
+    const { versionId } = request.params as { versionId: string };
+    const version = await getFlowVersionById(versionId);
+
+    return reply.send({
+      success: true,
+      data: version,
     });
   });
 }

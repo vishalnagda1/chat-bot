@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   ReactFlow,
   Controls,
@@ -14,8 +15,10 @@ import {
   type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { api } from "../../lib/api";
+import { useAuthStore } from "../../stores/auth";
 
-const initialNodes: Node[] = [
+const defaultNodes: Node[] = [
   {
     id: "1",
     type: "trigger",
@@ -26,7 +29,7 @@ const initialNodes: Node[] = [
     id: "2",
     type: "llm",
     position: { x: 250, y: 200 },
-    data: { label: "Claude AI", model: "claude-sonnet-5-20250514" },
+    data: { label: "Claude AI", model: "claude-sonnet-5-20250514", provider: "anthropic" },
   },
   {
     id: "3",
@@ -36,17 +39,10 @@ const initialNodes: Node[] = [
   },
 ];
 
-const initialEdges: Edge[] = [
+const defaultEdges: Edge[] = [
   { id: "e1-2", source: "1", target: "2", animated: true },
   { id: "e2-3", source: "2", target: "3", animated: true },
 ];
-
-const nodeTypes = {
-  trigger: TriggerNode,
-  llm: LLMNode,
-  response: ResponseNode,
-  tool: ToolNode,
-};
 
 function TriggerNode({ data }: { data: { label: string; type: string } }) {
   return (
@@ -58,12 +54,15 @@ function TriggerNode({ data }: { data: { label: string; type: string } }) {
   );
 }
 
-function LLMNode({ data }: { data: { label: string; model: string } }) {
+function LLMNode({ data }: { data: { label: string; model: string; provider?: string } }) {
   return (
     <div className="bg-purple-100 border-2 border-purple-500 rounded-lg px-4 py-2 min-w-[150px]">
       <div className="text-xs text-purple-600 font-medium">AI Model</div>
       <div className="font-semibold">{data.label}</div>
       <div className="text-xs text-gray-500">{data.model}</div>
+      {data.provider && (
+        <div className="text-xs text-purple-500 mt-1">{data.provider}</div>
+      )}
     </div>
   );
 }
@@ -87,11 +86,61 @@ function ToolNode({ data }: { data: { label: string; toolType: string } }) {
   );
 }
 
+const nodeTypes = {
+  trigger: TriggerNode,
+  llm: LLMNode,
+  response: ResponseNode,
+  tool: ToolNode,
+};
+
 export default function Builder() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const botId = searchParams.get("bot");
+  const { user, loadFromStorage } = useAuthStore();
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(defaultNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [showToolPanel, setShowToolPanel] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [flowName, setFlowName] = useState("Main Flow");
+  const [flowId, setFlowId] = useState<string | null>(null);
+  const [botName, setBotName] = useState("");
+
+  useEffect(() => {
+    loadFromStorage();
+  }, [loadFromStorage]);
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (botId) loadBot();
+  }, [user, botId, router]);
+
+  const loadBot = async () => {
+    try {
+      const botRes = await api.bots.get(botId!);
+      setBotName(botRes.data.name);
+
+      const flowsRes = await api.flows.list(botId!);
+      if (flowsRes.data.length > 0) {
+        const flow = flowsRes.data[0];
+        setFlowId(flow.id);
+        setFlowName(flow.name);
+        if (flow.nodes && flow.nodes.length > 0) {
+          setNodes(flow.nodes as Node[]);
+        }
+        if (flow.edges && flow.edges.length > 0) {
+          setEdges(flow.edges as Edge[]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load bot:", err);
+    }
+  };
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -104,20 +153,43 @@ export default function Builder() {
 
   const addNode = (type: string, label: string) => {
     const newNode: Node = {
-      id: `${nodes.length + 1}`,
+      id: `${Date.now()}`,
       type,
       position: { x: 250, y: nodes.length * 150 + 50 },
-      data: { label, type },
+      data: type === "llm" 
+        ? { label, type, model: "claude-sonnet-5-20250514", provider: "anthropic" }
+        : { label, type },
     };
     setNodes((nds) => [...nds, newNode]);
     setShowToolPanel(false);
   };
 
-  const saveFlow = () => {
-    const flow = { nodes, edges };
-    console.log("Saving flow:", flow);
-    // In production, save to API
-    alert("Flow saved!");
+  const saveFlow = async () => {
+    if (!botId) return;
+    setSaving(true);
+    try {
+      const res = await api.flows.save(botId, {
+        name: flowName,
+        nodes: nodes as unknown[],
+        edges: edges as unknown[],
+      });
+      setFlowId(res.data.id);
+
+      // Auto-create version and publish
+      const versionRes = await api.versions.create(botId, {
+        provider: "anthropic",
+        systemPrompt: "You are a helpful assistant.",
+        model: "claude-sonnet-5-20250514",
+      });
+      await api.bots.publish(botId, versionRes.data.id);
+
+      alert("Flow saved and bot published!");
+    } catch (err) {
+      console.error("Failed to save:", err);
+      alert("Failed to save flow");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -125,9 +197,12 @@ export default function Builder() {
       <header className="bg-white border-b px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <a href="/dashboard" className="text-gray-600 hover:text-gray-800">
-            ← Back
+            &larr; Back
           </a>
-          <h1 className="font-semibold">Flow Builder</h1>
+          <div>
+            <h1 className="font-semibold">{botName || "Flow Builder"}</h1>
+            {flowId && <p className="text-xs text-gray-500">Flow: {flowName}</p>}
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -138,9 +213,10 @@ export default function Builder() {
           </button>
           <button
             onClick={saveFlow}
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
+            disabled={saving || !botId}
+            className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
           >
-            Save
+            {saving ? "Saving..." : "Save & Publish"}
           </button>
         </div>
       </header>
@@ -220,7 +296,7 @@ export default function Builder() {
                 onClick={() => setSelectedNode(null)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                ×
+                &times;
               </button>
             </div>
             <div className="space-y-4">
@@ -244,28 +320,74 @@ export default function Builder() {
                 />
               </div>
               {selectedNode.type === "llm" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Model
-                  </label>
-                  <select
-                    value={selectedNode.data.model as string}
-                    onChange={(e) => {
-                      setNodes((nds) =>
-                        nds.map((n) =>
-                          n.id === selectedNode.id
-                            ? { ...n, data: { ...n.data, model: e.target.value } }
-                            : n
-                        )
-                      );
-                    }}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  >
-                    <option value="claude-sonnet-5-20250514">Claude Sonnet</option>
-                    <option value="claude-opus-4-20250514">Claude Opus</option>
-                    <option value="claude-haiku-4-20250514">Claude Haiku</option>
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Provider
+                    </label>
+                    <select
+                      value={(selectedNode.data.provider as string) || "anthropic"}
+                      onChange={(e) => {
+                        const provider = e.target.value;
+                        const defaultModels: Record<string, string> = {
+                          anthropic: "claude-sonnet-5-20250514",
+                          openai: "gpt-4o",
+                        };
+                        setNodes((nds) =>
+                          nds.map((n) =>
+                            n.id === selectedNode.id
+                              ? {
+                                  ...n,
+                                  data: {
+                                    ...n.data,
+                                    provider,
+                                    model: defaultModels[provider] || n.data.model,
+                                  },
+                                }
+                              : n
+                          )
+                        );
+                      }}
+                      className="w-full border rounded px-3 py-2 text-sm"
+                    >
+                      <option value="anthropic">Anthropic (Claude)</option>
+                      <option value="openai">OpenAI (GPT)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Model
+                    </label>
+                    <select
+                      value={selectedNode.data.model as string}
+                      onChange={(e) => {
+                        setNodes((nds) =>
+                          nds.map((n) =>
+                            n.id === selectedNode.id
+                              ? { ...n, data: { ...n.data, model: e.target.value } }
+                              : n
+                          )
+                        );
+                      }}
+                      className="w-full border rounded px-3 py-2 text-sm"
+                    >
+                      {(selectedNode.data.provider as string) === "openai" ? (
+                        <>
+                          <option value="gpt-4o">GPT-4o</option>
+                          <option value="gpt-4o-mini">GPT-4o Mini</option>
+                          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="claude-sonnet-5-20250514">Claude Sonnet</option>
+                          <option value="claude-opus-4-20250514">Claude Opus</option>
+                          <option value="claude-haiku-4-20250514">Claude Haiku</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                </>
               )}
               <button
                 onClick={() => {

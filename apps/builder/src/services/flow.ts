@@ -86,10 +86,57 @@ export async function saveFlow(botId: string, name: string, nodes: FlowNode[], e
   });
 
   if (existingFlow) {
+    // Create version snapshot before updating
+    await createFlowVersion(existingFlow.id, existingFlow.version || 1, existingFlow.nodes as FlowNode[], existingFlow.edges as FlowEdge[]);
+
+    // Update version number
+    const newVersion = (existingFlow.version || 1) + 1;
+
     // Update existing flow
-    return updateFlow(existingFlow.id, { name, nodes, edges });
+    const [updated] = await db
+      .update(schema.flows)
+      .set({ name, nodes, edges, version: newVersion, updatedAt: new Date() })
+      .where(eq(schema.flows.id, existingFlow.id))
+      .returning();
+
+    return updated;
   }
 
   // Create new flow
   return createFlow({ botId, name, nodes, edges });
+}
+
+export async function createFlowVersion(flowId: string, version: number, nodes: FlowNode[], edges: FlowEdge[]) {
+  const [flowVersion] = await db
+    .insert(schema.flowVersions)
+    .values({
+      flowId,
+      version,
+      nodes,
+      edges,
+    })
+    .returning();
+
+  return flowVersion!;
+}
+
+export async function getFlowVersions(flowId: string) {
+  const versions = await db.query.flowVersions.findMany({
+    where: eq(schema.flowVersions.flowId, flowId),
+    orderBy: (versions, { desc }) => [desc(versions.version)],
+  });
+
+  return versions;
+}
+
+export async function getFlowVersionById(id: string) {
+  const version = await db.query.flowVersions.findFirst({
+    where: eq(schema.flowVersions.id, id),
+  });
+
+  if (!version) {
+    throw new Error("Flow version not found");
+  }
+
+  return version;
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { api } from "../../lib/api";
+import { useAuthStore } from "../../stores/auth";
 
 interface Message {
   id: string;
@@ -10,17 +13,52 @@ interface Message {
 }
 
 export default function Preview() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "Hello! How can I help you today?",
-      timestamp: new Date(),
-    },
-  ]);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const botId = searchParams.get("bot");
+  const { user, loadFromStorage } = useAuthStore();
+
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [botName, setBotName] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadFromStorage();
+  }, [loadFromStorage]);
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (botId) initChat();
+  }, [user, botId, router]);
+
+  const initChat = async () => {
+    try {
+      const botRes = await api.bots.get(botId!);
+      setBotName(botRes.data.name);
+
+      const convRes = await api.chat.createConversation(botId!);
+      setConversationId(convRes.data.id);
+
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          content: "Hello! How can I help you today?",
+          timestamp: new Date(),
+        },
+      ]);
+    } catch (err) {
+      setError("Failed to initialize chat. Make sure the bot is published.");
+      console.error(err);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -31,7 +69,7 @@ export default function Preview() {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !conversationId) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -43,18 +81,22 @@ export default function Preview() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
+    setError(null);
 
-    // Simulate AI response (in production, call chat engine API)
-    setTimeout(() => {
+    try {
+      const res = await api.chat.sendMessage(conversationId, userMessage.content);
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: res.data.message.id,
         role: "assistant",
-        content: `I received your message: "${userMessage.content}". In production, this would be processed by the Claude AI model.`,
+        content: res.data.message.content,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -62,14 +104,20 @@ export default function Preview() {
       <header className="bg-white border-b px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <a href="/dashboard" className="text-gray-600 hover:text-gray-800">
-            ← Back
+            &larr; Back
           </a>
-          <h1 className="font-semibold">Chat Preview</h1>
+          <h1 className="font-semibold">{botName || "Chat Preview"}</h1>
           <div className="w-16" />
         </div>
       </header>
 
       <main className="flex-1 flex flex-col max-w-2xl mx-auto w-full">
+        {error && (
+          <div className="mx-4 mt-4 bg-red-50 text-red-600 text-sm p-3 rounded">
+            {error}
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message) => (
             <div
@@ -124,11 +172,11 @@ export default function Preview() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type your message..."
               className="flex-1 border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading}
+              disabled={isLoading || !conversationId}
             />
             <button
               type="submit"
-              disabled={!input.trim() || isLoading}
+              disabled={!input.trim() || isLoading || !conversationId}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send

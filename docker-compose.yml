@@ -20,7 +20,7 @@ services:
       POSTGRES_PASSWORD: dev
       POSTGRES_DB: chatbot
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d
@@ -80,6 +80,8 @@ services:
       - "3003:3000"
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
     volumes:
       - ./apps/chat-engine:/app/apps/chat-engine
       - /app/node_modules

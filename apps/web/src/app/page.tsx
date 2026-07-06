@@ -1,6 +1,22 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuthStore } from "../stores/auth";
 
 export default function Home() {
+  const { user, loadFromStorage } = useAuthStore();
+  const router = useRouter();
+
+  useEffect(() => {
+    loadFromStorage();
+  }, [loadFromStorage]);
+
+  useEffect(() => {
+    if (user) router.push("/dashboard");
+  }, [user, router]);
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="max-w-2xl text-center">
@@ -11,16 +27,16 @@ export default function Home() {
         </p>
         <div className="flex gap-4 justify-center">
           <Link
-            href="/dashboard"
+            href="/register"
             className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition"
           >
-            Go to Dashboard
+            Get Started
           </Link>
           <Link
-            href="/builder"
+            href="/login"
             className="bg-gray-100 text-gray-800 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition"
           >
-            Start Building
+            Sign In
           </Link>
         </div>
       </div>

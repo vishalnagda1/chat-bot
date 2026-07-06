@@ -1,7 +1,15 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
+import { connectNats } from "@repo/events/nats";
 
 async function start() {
+  // Connect to NATS
+  try {
+    await connectNats(config.natsUrl);
+  } catch (err) {
+    console.warn("Failed to connect to NATS, events will not be published:", err);
+  }
+
   const app = await buildApp();
 
   try {

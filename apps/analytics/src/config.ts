@@ -3,5 +3,6 @@ export const config = {
   host: process.env.HOST || "0.0.0.0",
   databaseUrl: process.env.DATABASE_URL!,
   natsUrl: process.env.NATS_URL || "nats://localhost:4222",
+  jwtSecret: process.env.JWT_SECRET || "change-me-in-production",
   logLevel: process.env.LOG_LEVEL || "info",
 };

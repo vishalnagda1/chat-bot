@@ -7,9 +7,12 @@ import {
   addMessage,
   getConversationHistory,
 } from "../services/conversation.js";
-import { generateResponse, streamResponse, LLMMessage } from "../llm/claude.js";
+import { getProvider, getDefaultProvider, type ProviderName } from "../llm/index.js";
 import { db, schema } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { publishEvent } from "@repo/events/nats";
+import { EventType } from "@repo/events";
+import crypto from "crypto";
 
 const createConversationSchema = z.object({
   endUserId: z.string().optional(),
@@ -92,8 +95,15 @@ export async function chatRoutes(app: FastifyInstance) {
 
     // Get live version for config
     const liveVersion = await db.query.botVersions.findFirst({
-      where: eq(schema.botVersions.botId, bot.id),
+      where: and(
+        eq(schema.botVersions.botId, bot.id),
+        eq(schema.botVersions.isLive, true)
+      ),
     });
+
+    // Get provider - use bot's configured provider or default
+    const providerName = (liveVersion?.provider as ProviderName) || getDefaultProvider();
+    const provider = getProvider(providerName);
 
     // Add user message
     await addMessage({ conversationId, content: input.content }, "user");
@@ -102,13 +112,13 @@ export async function chatRoutes(app: FastifyInstance) {
     const history = await getConversationHistory(conversationId);
 
     // Prepare messages for LLM
-    const llmMessages: LLMMessage[] = history.map((m) => ({
+    const llmMessages = history.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
 
-    // Generate response
-    const response = await generateResponse(llmMessages, {
+    // Generate response using configured provider
+    const response = await provider.generateResponse(llmMessages, {
       model: liveVersion?.model || undefined,
       systemPrompt: liveVersion?.systemPrompt || undefined,
       temperature: liveVersion?.temperature ? liveVersion.temperature / 100 : undefined,
@@ -117,9 +127,24 @@ export async function chatRoutes(app: FastifyInstance) {
 
     // Add assistant message
     const assistantMessage = await addMessage(
-      { conversationId, content: response.content },
+      { conversationId, content: response.content, tokens: response.usage?.outputTokens },
       "assistant"
     );
+
+    // Emit message event
+    await publishEvent("message.sent", {
+      eventId: crypto.randomUUID(),
+      eventType: EventType.MESSAGE_SENT,
+      timestamp: new Date().toISOString(),
+      orgId: "",
+      botId: conversation.botId,
+      data: {
+        conversationId,
+        messageId: assistantMessage.id,
+        role: "assistant",
+        tokens: response.usage?.outputTokens,
+      },
+    });
 
     return reply.send({
       success: true,
@@ -147,8 +172,15 @@ export async function chatRoutes(app: FastifyInstance) {
 
     // Get live version for config
     const liveVersion = await db.query.botVersions.findFirst({
-      where: eq(schema.botVersions.botId, bot.id),
+      where: and(
+        eq(schema.botVersions.botId, bot.id),
+        eq(schema.botVersions.isLive, true)
+      ),
     });
+
+    // Get provider
+    const providerName = (liveVersion?.provider as ProviderName) || getDefaultProvider();
+    const provider = getProvider(providerName);
 
     // Add user message
     await addMessage({ conversationId, content: input.content }, "user");
@@ -157,7 +189,7 @@ export async function chatRoutes(app: FastifyInstance) {
     const history = await getConversationHistory(conversationId);
 
     // Prepare messages for LLM
-    const llmMessages: LLMMessage[] = history.map((m) => ({
+    const llmMessages = history.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
@@ -172,7 +204,7 @@ export async function chatRoutes(app: FastifyInstance) {
     let fullResponse = "";
 
     try {
-      for await (const chunk of streamResponse(llmMessages, {
+      for await (const chunk of provider.streamResponse(llmMessages, {
         model: liveVersion?.model || undefined,
         systemPrompt: liveVersion?.systemPrompt || undefined,
         temperature: liveVersion?.temperature ? liveVersion.temperature / 100 : undefined,

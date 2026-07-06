@@ -1,118 +1,115 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { config } from "../config.js";
+import { LLMProvider, LLMMessage, LLMOptions, LLMResponse } from "./types.js";
 
-const client = new Anthropic({
-  apiKey: config.anthropicApiKey,
-});
+export class ClaudeProvider implements LLMProvider {
+  name = "anthropic";
+  private client: Anthropic;
 
-export interface LLMMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-export interface LLMOptions {
-  model?: string;
-  systemPrompt?: string;
-  temperature?: number;
-  maxTokens?: number;
-}
-
-export async function generateResponse(
-  messages: LLMMessage[],
-  options: LLMOptions = {}
-) {
-  const {
-    model = "claude-sonnet-5-20250514",
-    systemPrompt = "You are a helpful assistant.",
-    temperature = 0.7,
-    maxTokens = 4096,
-  } = options;
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    temperature,
-    system: systemPrompt,
-    messages: messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
-  });
-
-  const content = response.content[0];
-  if (!content || content.type !== "text") {
-    throw new Error("Unexpected response type from Claude");
+  constructor(apiKey: string) {
+    this.client = new Anthropic({ apiKey });
   }
 
-  return {
-    content: content.text,
-    usage: response.usage,
-  };
-}
+  async generateResponse(messages: LLMMessage[], options: LLMOptions = {}): Promise<LLMResponse> {
+    const {
+      model = "claude-sonnet-5-20250514",
+      systemPrompt = "You are a helpful assistant.",
+      temperature = 0.7,
+      maxTokens = 4096,
+    } = options;
 
-export async function* streamResponse(
-  messages: LLMMessage[],
-  options: LLMOptions = {}
-) {
-  const {
-    model = "claude-sonnet-5-20250514",
-    systemPrompt = "You are a helpful assistant.",
-    temperature = 0.7,
-    maxTokens = 4096,
-  } = options;
+    const response = await this.client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      temperature,
+      system: systemPrompt,
+      messages: messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+    });
 
-  const stream = client.messages.stream({
-    model,
-    max_tokens: maxTokens,
-    temperature,
-    system: systemPrompt,
-    messages: messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
-  });
+    const content = response.content[0];
+    if (!content || content.type !== "text") {
+      throw new Error("Unexpected response type from Claude");
+    }
 
-  for await (const event of stream) {
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
-      yield event.delta.text;
+    return {
+      content: content.text,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
+    };
+  }
+
+  async *streamResponse(messages: LLMMessage[], options: LLMOptions = {}): AsyncGenerator<string> {
+    const {
+      model = "claude-sonnet-5-20250514",
+      systemPrompt = "You are a helpful assistant.",
+      temperature = 0.7,
+      maxTokens = 4096,
+    } = options;
+
+    const stream = this.client.messages.stream({
+      model,
+      max_tokens: maxTokens,
+      temperature,
+      system: systemPrompt,
+      messages: messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+    });
+
+    for await (const event of stream) {
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
+        yield event.delta.text;
+      }
     }
   }
-}
 
-export async function generateWithTools(
-  messages: LLMMessage[],
-  tools: Array<{
-    name: string;
-    description: string;
-    input_schema: Record<string, unknown>;
-  }>,
-  options: LLMOptions = {}
-) {
-  const {
-    model = "claude-sonnet-5-20250514",
-    systemPrompt = "You are a helpful assistant.",
-    temperature = 0.7,
-    maxTokens = 4096,
-  } = options;
+  async generateWithTools(
+    messages: LLMMessage[],
+    tools: Array<{
+      name: string;
+      description: string;
+      inputSchema: Record<string, unknown>;
+    }>,
+    options: LLMOptions = {}
+  ): Promise<LLMResponse> {
+    const {
+      model = "claude-sonnet-5-20250514",
+      systemPrompt = "You are a helpful assistant.",
+      temperature = 0.7,
+      maxTokens = 4096,
+    } = options;
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    temperature,
-    system: systemPrompt,
-    messages: messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
-    tools: tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.input_schema as Anthropic.Tool["input_schema"],
-    })),
-  });
+    const response = await this.client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      temperature,
+      system: systemPrompt,
+      messages: messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+      tools: tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.inputSchema as Anthropic.Tool["input_schema"],
+      })),
+    });
 
-  return response;
+    const content = response.content[0];
+    return {
+      content: content?.type === "text" ? content.text : "",
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
+    };
+  }
 }

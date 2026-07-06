@@ -1,5 +1,8 @@
 import { db, schema } from "@repo/db";
 import { eq, and } from "drizzle-orm";
+import { publishEvent } from "@repo/events/nats";
+import { EventType } from "@repo/events";
+import crypto from "crypto";
 
 type Bot = typeof schema.bots.$inferSelect;
 type BotVersion = typeof schema.botVersions.$inferSelect;
@@ -17,6 +20,7 @@ export interface UpdateBotInput {
 
 export interface CreateVersionInput {
   botId: string;
+  provider?: string;
   systemPrompt?: string;
   model?: string;
   temperature?: number;
@@ -40,6 +44,16 @@ export async function createBot(input: CreateBotInput) {
     botId: bot!.id,
     version: 1,
     isLive: false,
+  });
+
+  // Emit event
+  await publishEvent("bot.created", {
+    eventId: crypto.randomUUID(),
+    eventType: EventType.BOT_CREATED,
+    timestamp: new Date().toISOString(),
+    orgId: input.orgId,
+    botId: bot!.id,
+    data: { botId: bot!.id, name: input.name },
   });
 
   return bot!;
@@ -77,6 +91,17 @@ export async function updateBot(id: string, input: UpdateBotInput) {
     .where(eq(schema.bots.id, id))
     .returning();
 
+  if (bot) {
+    await publishEvent("bot.updated", {
+      eventId: crypto.randomUUID(),
+      eventType: EventType.BOT_UPDATED,
+      timestamp: new Date().toISOString(),
+      orgId: bot.orgId,
+      botId: id,
+      data: { botId: id, changes: input },
+    });
+  }
+
   return bot;
 }
 
@@ -99,6 +124,7 @@ export async function createVersion(input: CreateVersionInput) {
     .values({
       botId: input.botId,
       version: nextVersion,
+      provider: input.provider,
       systemPrompt: input.systemPrompt,
       model: input.model,
       temperature: input.temperature,
@@ -139,6 +165,22 @@ export async function publishBot(botId: string, versionId: string) {
     .set({ status: "published", updatedAt: new Date() })
     .where(eq(schema.bots.id, botId))
     .returning();
+
+  if (bot) {
+    // Get the version number
+    const version = await db.query.botVersions.findFirst({
+      where: eq(schema.botVersions.id, versionId),
+    });
+
+    await publishEvent("bot.published", {
+      eventId: crypto.randomUUID(),
+      eventType: EventType.BOT_PUBLISHED,
+      timestamp: new Date().toISOString(),
+      orgId: bot.orgId,
+      botId,
+      data: { botId, version: version?.version || 0 },
+    });
+  }
 
   return bot;
 }

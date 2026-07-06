@@ -17,10 +17,13 @@
     "@repo/logger": "workspace:*",
     "@repo/types": "workspace:*",
     "@repo/events": "workspace:*",
+    "@repo/auth-middleware": "workspace:*",
     "fastify": "^4.28.0",
     "@fastify/cors": "^9.0.0",
+    "@fastify/jwt": "^9.0.0",
     "@fastify/websocket": "^10.0.0",
     "@anthropic-ai/sdk": "^0.30.0",
+    "openai": "^4.50.0",
     "drizzle-orm": "^0.33.0",
     "zod": "^3.23.0"
   },

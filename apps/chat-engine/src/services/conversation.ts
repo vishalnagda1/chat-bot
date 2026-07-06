@@ -13,6 +13,7 @@ export interface CreateConversationInput {
 export interface SendMessageInput {
   conversationId: string;
   content: string;
+  tokens?: number;
 }
 
 export async function createConversation(input: CreateConversationInput) {
@@ -62,6 +63,7 @@ export async function addMessage(input: SendMessageInput, role: "user" | "assist
       conversationId: input.conversationId,
       role,
       content: input.content,
+      tokens: input.tokens,
     })
     .returning();
 

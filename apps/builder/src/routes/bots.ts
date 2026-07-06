@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { requireBotAccess } from "@repo/auth-middleware";
 import {
   createBot,
   getBotById,
@@ -23,6 +24,7 @@ const updateBotSchema = z.object({
 });
 
 const createVersionSchema = z.object({
+  provider: z.enum(["anthropic", "openai"]).optional(),
   systemPrompt: z.string().optional(),
   model: z.string().optional(),
   temperature: z.number().min(0).max(100).optional(),
@@ -64,7 +66,7 @@ export async function botRoutes(app: FastifyInstance) {
   });
 
   // Get bot
-  app.get("/api/bots/:botId", async (request, reply) => {
+  app.get("/api/bots/:botId", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const bot = await getBotById(botId);
 
@@ -75,7 +77,7 @@ export async function botRoutes(app: FastifyInstance) {
   });
 
   // Update bot
-  app.patch("/api/bots/:botId", async (request, reply) => {
+  app.patch("/api/bots/:botId", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const input = updateBotSchema.parse(request.body);
     const bot = await updateBot(botId, input);
@@ -87,7 +89,7 @@ export async function botRoutes(app: FastifyInstance) {
   });
 
   // Delete bot
-  app.delete("/api/bots/:botId", async (request, reply) => {
+  app.delete("/api/bots/:botId", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     await deleteBot(botId);
 
@@ -98,7 +100,7 @@ export async function botRoutes(app: FastifyInstance) {
   });
 
   // List versions
-  app.get("/api/bots/:botId/versions", async (request, reply) => {
+  app.get("/api/bots/:botId/versions", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const versions = await getVersions(botId);
 
@@ -109,7 +111,7 @@ export async function botRoutes(app: FastifyInstance) {
   });
 
   // Create version
-  app.post("/api/bots/:botId/versions", async (request, reply) => {
+  app.post("/api/bots/:botId/versions", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const input = createVersionSchema.parse(request.body);
     const version = await createVersion({ botId, ...input });
@@ -121,7 +123,7 @@ export async function botRoutes(app: FastifyInstance) {
   });
 
   // Publish bot
-  app.post("/api/bots/:botId/publish", async (request, reply) => {
+  app.post("/api/bots/:botId/publish", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const { versionId } = publishSchema.parse(request.body);
     const bot = await publishBot(botId, versionId);

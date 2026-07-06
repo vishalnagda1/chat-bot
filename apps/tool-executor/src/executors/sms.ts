@@ -14,17 +14,53 @@ export async function executeSendSms(
   config: SmsConfig,
   input: SmsInput
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  // For now, we'll log the SMS and return success
-  // In production, you'd use the actual provider SDK
-  console.log("Sending SMS:", {
-    provider: config.provider,
-    to: input.to,
-    message: input.message,
-  });
+  try {
+    if (config.provider === "twilio") {
+      // Use Twilio REST API
+      const accountSid = config.apiKey;
+      const authToken = config.apiSecret;
 
-  // Simulate SMS sending
-  return {
-    success: true,
-    messageId: `sms-${Date.now()}`,
-  };
+      if (!accountSid || !authToken) {
+        throw new Error("Twilio credentials not configured");
+      }
+
+      const response = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+          },
+          body: new URLSearchParams({
+            To: input.to,
+            From: config.fromNumber || "",
+            Body: input.message,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to send SMS");
+      }
+
+      return {
+        success: true,
+        messageId: result.sid,
+      };
+    } else if (config.provider === "aws-sns") {
+      // AWS SNS integration would go here
+      // For now, throw an error indicating it's not implemented
+      throw new Error("AWS SNS not yet implemented");
+    }
+
+    throw new Error(`Unknown SMS provider: ${config.provider}`);
+  } catch (error) {
+    return {
+      success: false,
+      error: (error as Error).message,
+    };
+  }
 }

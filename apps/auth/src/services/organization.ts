@@ -43,12 +43,16 @@ export async function getOrganizationById(id: string) {
 export async function getOrganizationsByUserId(userId: string) {
   const memberships = await db.query.memberships.findMany({
     where: eq(schema.memberships.userId, userId),
-    with: {
-      org: true,
-    },
   });
 
-  return memberships.map((m) => m.org);
+  const orgIds = memberships.map((m) => m.orgId);
+  if (orgIds.length === 0) return [];
+
+  const orgs = await db.query.organizations.findMany({
+    where: (organizations, { inArray }) => inArray(organizations.id, orgIds),
+  });
+
+  return orgs;
 }
 
 export async function addMember(orgId: string, userId: string, role: string) {
@@ -76,20 +80,24 @@ export async function removeMember(orgId: string, userId: string) {
 }
 
 export async function getMembers(orgId: string) {
-  const members = await db.query.memberships.findMany({
+  const memberships = await db.query.memberships.findMany({
     where: eq(schema.memberships.orgId, orgId),
-    with: {
-      user: {
-        columns: {
-          id: true,
-          email: true,
-          name: true,
-        },
-      },
-    },
   });
 
-  return members;
+  if (memberships.length === 0) return [];
+
+  const userIds = [...new Set(memberships.map((m) => m.userId))];
+  const users = await db.query.users.findMany({
+    where: (users, { inArray }) => inArray(users.id, userIds),
+    columns: { id: true, email: true, name: true },
+  });
+
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  return memberships.map((m) => ({
+    ...m,
+    user: userMap.get(m.userId) || null,
+  }));
 }
 
 export async function updateOrg(

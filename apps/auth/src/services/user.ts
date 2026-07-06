@@ -1,5 +1,5 @@
 import { db, schema } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 type User = typeof schema.users.$inferSelect;
@@ -79,4 +79,40 @@ export async function updateUser(
     .returning();
 
   return user;
+}
+
+// Session management
+export async function createSession(userId: string, token: string, expiresAt: Date) {
+  const [session] = await db
+    .insert(schema.sessions)
+    .values({
+      userId,
+      token,
+      expiresAt,
+    })
+    .returning();
+
+  return session!;
+}
+
+export async function getSessionByToken(token: string) {
+  const session = await db.query.sessions.findFirst({
+    where: eq(schema.sessions.token, token),
+  });
+
+  return session;
+}
+
+export async function deleteSession(token: string) {
+  await db.delete(schema.sessions).where(eq(schema.sessions.token, token));
+}
+
+export async function deleteAllUserSessions(userId: string) {
+  await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
+}
+
+export async function deleteExpiredSessions() {
+  await db
+    .delete(schema.sessions)
+    .where(lt(schema.sessions.expiresAt, new Date()));
 }
