@@ -11,6 +11,9 @@ import {
   deleteOrganization,
 } from "../services/organization.js";
 import { getUserById } from "../services/user.js";
+import { requireOrgMember } from "@repo/auth-middleware";
+import { db, schema } from "@repo/db";
+import { eq } from "drizzle-orm";
 
 const createOrgSchema = z.object({
   name: z.string().min(1),
@@ -26,21 +29,10 @@ const addMemberSchema = z.object({
   role: z.enum(["admin", "editor", "viewer"]),
 });
 
-function getUserIdFromToken(request: any, app: FastifyInstance): string {
-  const auth = request.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
-    throw new Error("Unauthorized");
-  }
-  const token = auth.slice(7);
-  const decoded = app.jwt.verify<{ userId: string }>(token);
-  return decoded.userId;
-}
-
 export async function orgRoutes(app: FastifyInstance) {
   // List organizations
   app.get("/api/orgs", async (request, reply) => {
-    const userId = getUserIdFromToken(request, app);
-    const orgs = await getOrganizationsByUserId(userId);
+    const orgs = await getOrganizationsByUserId(request.user.userId);
 
     return reply.send({
       success: true,
@@ -50,12 +42,11 @@ export async function orgRoutes(app: FastifyInstance) {
 
   // Create organization
   app.post("/api/orgs", async (request, reply) => {
-    const userId = getUserIdFromToken(request, app);
     const input = createOrgSchema.parse(request.body);
 
     const org = await createOrganization({
       ...input,
-      ownerId: userId,
+      ownerId: request.user.userId,
     });
 
     return reply.status(201).send({
@@ -65,7 +56,7 @@ export async function orgRoutes(app: FastifyInstance) {
   });
 
   // Get organization
-  app.get("/api/orgs/:orgId", async (request, reply) => {
+  app.get("/api/orgs/:orgId", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };
     const org = await getOrganizationById(orgId);
 
@@ -76,7 +67,7 @@ export async function orgRoutes(app: FastifyInstance) {
   });
 
   // Update organization
-  app.patch("/api/orgs/:orgId", async (request, reply) => {
+  app.patch("/api/orgs/:orgId", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };
     const input = updateOrgSchema.parse(request.body);
 
@@ -89,7 +80,7 @@ export async function orgRoutes(app: FastifyInstance) {
   });
 
   // Delete organization
-  app.delete("/api/orgs/:orgId", async (request, reply) => {
+  app.delete("/api/orgs/:orgId", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };
     await deleteOrganization(orgId);
 
@@ -100,7 +91,7 @@ export async function orgRoutes(app: FastifyInstance) {
   });
 
   // List members
-  app.get("/api/orgs/:orgId/members", async (request, reply) => {
+  app.get("/api/orgs/:orgId/members", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };
     const members = await getMembers(orgId);
 
@@ -111,13 +102,11 @@ export async function orgRoutes(app: FastifyInstance) {
   });
 
   // Add member
-  app.post("/api/orgs/:orgId/members", async (request, reply) => {
+  app.post("/api/orgs/:orgId/members", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const { orgId } = request.params as { orgId: string };
     const input = addMemberSchema.parse(request.body);
 
     // Find user by email
-    const { db, schema } = await import("@repo/db");
-    const { eq } = await import("drizzle-orm");
     const user = await db.query.users.findFirst({
       where: eq(schema.users.email, input.email),
     });
@@ -135,7 +124,7 @@ export async function orgRoutes(app: FastifyInstance) {
   });
 
   // Remove member
-  app.delete("/api/orgs/:orgId/members/:userId", async (request, reply) => {
+  app.delete("/api/orgs/:orgId/members/:userId", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const { orgId, userId } = request.params as { orgId: string; userId: string };
     await removeMember(orgId, userId);
 

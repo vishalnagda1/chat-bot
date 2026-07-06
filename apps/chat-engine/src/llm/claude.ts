@@ -103,9 +103,24 @@ export class ClaudeProvider implements LLMProvider {
       })),
     });
 
-    const content = response.content[0];
+    let textContent = "";
+    const toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> = [];
+
+    for (const block of response.content) {
+      if (block.type === "text") {
+        textContent += block.text;
+      } else if (block.type === "tool_use") {
+        toolCalls.push({
+          id: block.id,
+          name: block.name,
+          arguments: block.input as Record<string, unknown>,
+        });
+      }
+    }
+
     return {
-      content: content?.type === "text" ? content.text : "",
+      content: textContent,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       usage: {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,

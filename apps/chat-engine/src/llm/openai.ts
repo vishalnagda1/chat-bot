@@ -115,11 +115,18 @@ export class OpenAIProvider implements LLMProvider {
     });
 
     const choice = response.choices[0];
+    const toolCalls = choice?.message?.tool_calls?.map((tc) => ({
+      id: tc.id,
+      name: tc.function.name,
+      arguments: JSON.parse(tc.function.arguments) as Record<string, unknown>,
+    }));
+
     return {
       content: choice?.message?.content || "",
+      toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       usage: {
-        inputTokens: response.usage?.prompt_tokens,
-        outputTokens: response.usage?.completion_tokens,
+        inputTokens: response.usage?.prompt_tokens || 0,
+        outputTokens: response.usage?.completion_tokens || 0,
       },
     };
   }

@@ -87,14 +87,36 @@ export async function getMessages(conversationId: string) {
   return messages;
 }
 
-export async function getConversationHistory(conversationId: string, limit = 50) {
+export async function getConversationHistory(conversationId: string, maxTokens = 8000) {
+  // Get messages in chronological order
   const messages = await db.query.messages.findMany({
     where: eq(schema.messages.conversationId, conversationId),
-    limit,
+    orderBy: [asc(schema.messages.createdAt)],
   });
 
-  // Sort by createdAt descending and reverse to get chronological order
-  messages.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  // Estimate tokens and truncate from the beginning if needed
+  // Rough estimate: 1 token ≈ 4 characters
+  let totalChars = 0;
+  const truncatedMessages: typeof messages = [];
 
-  return messages.reverse();
+  // Start from the end (most recent) and work backwards
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    const msgChars = msg.content.length;
+    
+    // Check if adding this message would exceed token limit
+    if (totalChars + msgChars > maxTokens * 4) {
+      // If we haven't collected any messages yet, include at least the last one
+      if (truncatedMessages.length === 0) {
+        truncatedMessages.push(msg);
+      }
+      break;
+    }
+    
+    totalChars += msgChars;
+    truncatedMessages.push(msg);
+  }
+
+  // Reverse to get chronological order
+  return truncatedMessages.reverse();
 }

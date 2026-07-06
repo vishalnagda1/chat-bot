@@ -10,6 +10,7 @@ import {
   getFlowVersions,
   getFlowVersionById,
 } from "../services/flow.js";
+import { requireBotAccess } from "@repo/auth-middleware";
 
 const flowNodeSchema = z.object({
   id: z.string(),
@@ -45,7 +46,7 @@ const saveFlowSchema = z.object({
 
 export async function flowRoutes(app: FastifyInstance) {
   // List flows for a bot
-  app.get("/api/bots/:botId/flows", async (request, reply) => {
+  app.get("/api/bots/:botId/flows", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const flows = await getFlowsByBotId(botId);
 
@@ -67,7 +68,7 @@ export async function flowRoutes(app: FastifyInstance) {
   });
 
   // Create flow
-  app.post("/api/bots/:botId/flows", async (request, reply) => {
+  app.post("/api/bots/:botId/flows", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const input = createFlowSchema.parse(request.body);
     const flow = await createFlow({ botId, ...input });
@@ -102,7 +103,7 @@ export async function flowRoutes(app: FastifyInstance) {
   });
 
   // Save flow (upsert)
-  app.put("/api/bots/:botId/flows", async (request, reply) => {
+  app.put("/api/bots/:botId/flows", { preHandler: [requireBotAccess] }, async (request, reply) => {
     const { botId } = request.params as { botId: string };
     const input = saveFlowSchema.parse(request.body);
     const flow = await saveFlow(botId, input.name, input.nodes, input.edges);

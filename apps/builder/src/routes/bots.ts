@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireBotAccess } from "@repo/auth-middleware";
+import { requireBotAccess, requireOrgMember } from "@repo/auth-middleware";
 import {
   createBot,
   getBotById,
@@ -39,7 +39,7 @@ const publishSchema = z.object({
 
 export async function botRoutes(app: FastifyInstance) {
   // List bots for an org
-  app.get("/api/bots", async (request, reply) => {
+  app.get("/api/bots", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const { orgId } = request.query as { orgId: string };
 
     if (!orgId) {
@@ -55,7 +55,7 @@ export async function botRoutes(app: FastifyInstance) {
   });
 
   // Create bot
-  app.post("/api/bots", async (request, reply) => {
+  app.post("/api/bots", { preHandler: [requireOrgMember] }, async (request, reply) => {
     const input = createBotSchema.parse(request.body);
     const bot = await createBot(input);
 

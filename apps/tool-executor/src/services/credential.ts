@@ -2,7 +2,11 @@ import { db, schema } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 
-const ENCRYPTION_KEY = process.env.CREDENTIAL_ENCRYPTION_KEY || crypto.randomBytes(32).toString("hex");
+if (!process.env.CREDENTIAL_ENCRYPTION_KEY) {
+  throw new Error("CREDENTIAL_ENCRYPTION_KEY environment variable is required");
+}
+
+const ENCRYPTION_KEY = process.env.CREDENTIAL_ENCRYPTION_KEY;
 const ALGORITHM = "aes-256-gcm";
 
 function encrypt(text: string): string {

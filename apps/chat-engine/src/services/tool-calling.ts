@@ -68,7 +68,8 @@ export async function chatWithTools(
   provider: LLMProvider,
   messages: LLMMessage[],
   tools: LLMTool[],
-  options: LLMOptions
+  options: LLMOptions,
+  conversationId: string
 ): Promise<{ content: string; toolCalls: ToolCallResult[] }> {
   const allToolCalls: ToolCallResult[] = [];
   let currentMessages = [...messages];
@@ -85,7 +86,7 @@ export async function chatWithTools(
     // Execute tool calls
     const toolResults: string[] = [];
     for (const toolCall of response.toolCalls) {
-      const result = await executeToolCall(toolCall, "");
+      const result = await executeToolCall(toolCall, conversationId);
       allToolCalls.push(result);
 
       // Format tool result for the LLM

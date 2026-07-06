@@ -42,7 +42,7 @@ export function createRateLimiter(config: Partial<RateLimitConfig> = {}) {
     reply.header("X-RateLimit-Reset", Math.ceil(entry.resetAt / 1000));
 
     // Check if rate limit exceeded
-    if (entry.count > maxRequests) {
+    if (entry.count >= maxRequests) {
       return reply.status(429).send({
         error: "Too Many Requests",
         message: `Rate limit exceeded. Try again in ${Math.ceil((entry.resetAt - now) / 1000)} seconds.`,
@@ -52,12 +52,23 @@ export function createRateLimiter(config: Partial<RateLimitConfig> = {}) {
   };
 }
 
-// Clean up expired entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
-    if (now > entry.resetAt) {
-      rateLimitStore.delete(key);
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startRateLimitCleanup() {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitStore.entries()) {
+      if (now > entry.resetAt) {
+        rateLimitStore.delete(key);
+      }
     }
+  }, 60 * 1000);
+}
+
+export function stopRateLimitCleanup() {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
   }
-}, 60 * 1000);
+}

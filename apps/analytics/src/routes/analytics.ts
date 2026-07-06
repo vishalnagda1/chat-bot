@@ -99,21 +99,25 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 30);
 
-    const [totalConversations, totalMessages, totalToolExecutions] = await Promise.all([
+    const [conversations, messages, toolExecutions] = await Promise.all([
       getAggregatedMetrics(orgId, undefined, "conversation.started", startDate, endDate),
       getAggregatedMetrics(orgId, undefined, "message.sent", startDate, endDate),
       getAggregatedMetrics(orgId, undefined, "tool.executed", startDate, endDate),
     ]);
 
+    const totalConversations = conversations || 0;
+    const totalMessages = messages || 0;
+    const averageMessagesPerConversation = totalConversations > 0 
+      ? totalMessages / totalConversations 
+      : 0;
+
     return reply.send({
       success: true,
       data: {
-        period: { startDate, endDate },
-        metrics: {
-          conversations: totalConversations,
-          messages: totalMessages,
-          toolExecutions: totalToolExecutions,
-        },
+        totalConversations,
+        totalMessages,
+        totalTokens: 0, // Token tracking not implemented yet
+        averageMessagesPerConversation,
       },
     });
   });
