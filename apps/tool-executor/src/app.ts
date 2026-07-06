@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { config } from "./config.js";
+import { toolRoutes } from "./routes/tools.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -15,6 +16,9 @@ export async function buildApp() {
   app.get("/health", async () => {
     return { status: "ok", service: "tool-executor" };
   });
+
+  // Register routes
+  await app.register(toolRoutes);
 
   return app;
 }
