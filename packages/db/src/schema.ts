@@ -189,3 +189,47 @@ export const toolExecutions = pgTable("tool_executions", {
   latencyMs: integer("latency_ms"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Deployment status enum
+export const deploymentStatusEnum = pgEnum("deployment_status", [
+  "pending",
+  "active",
+  "inactive",
+  "failed",
+  "rolled_back",
+]);
+
+// Environment enum
+export const environmentEnum = pgEnum("environment", [
+  "development",
+  "staging",
+  "production",
+]);
+
+// Deployments table
+export const deployments = pgTable("deployments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  botId: uuid("bot_id")
+    .references(() => bots.id)
+    .notNull(),
+  versionId: uuid("version_id")
+    .references(() => botVersions.id)
+    .notNull(),
+  environment: environmentEnum("environment").notNull(),
+  status: deploymentStatusEnum("status").default("pending"),
+  channelConfig: jsonb("channel_config"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Channel bindings table
+export const channelBindings = pgTable("channel_bindings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  deploymentId: uuid("deployment_id")
+    .references(() => deployments.id)
+    .notNull(),
+  channelType: varchar("channel_type", { length: 50 }).notNull(), // web, slack, whatsapp, telegram, api
+  config: jsonb("config"),
+  status: varchar("status", { length: 20 }).default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
