@@ -1,0 +1,9 @@
+{
+  "$schema": "https://orm.drizzle.team/schema.json",
+  "out": "./drizzle",
+  "dialect": "postgresql",
+  "schema": "./src/schema.ts",
+  "dbCredentials": {
+    "url": "postgres://dev:dev@localhost:5432/chatbot"
+  }
+}
