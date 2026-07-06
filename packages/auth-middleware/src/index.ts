@@ -5,16 +5,10 @@ export interface AuthUser {
   email: string;
 }
 
-declare module "fastify" {
-  interface FastifyRequest {
-    user: AuthUser;
-  }
-}
-
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
   try {
-    const decoded = await request.jwtVerify<{ userId: string; email: string }>();
-    request.user = { userId: decoded.userId, email: decoded.email };
+    const decoded = await (request as any).jwtVerify();
+    (request as any).user = { userId: decoded.userId, email: decoded.email };
   } catch (err) {
     return reply.status(401).send({ error: "Unauthorized", message: "Invalid or missing token" });
   }
@@ -24,13 +18,13 @@ export async function requireOrgMember(request: FastifyRequest, reply: FastifyRe
   const { orgId } = request.params as { orgId?: string };
   if (!orgId) return;
 
-  const { db, schema } = await import("@repo/db");
-  const { eq, and } = await import("drizzle-orm");
+  const { db, schema, eq, and } = await import("@repo/db");
+  const user = (request as any).user as AuthUser;
 
   const membership = await db.query.memberships.findFirst({
     where: and(
       eq(schema.memberships.orgId, orgId),
-      eq(schema.memberships.userId, request.user.userId)
+      eq(schema.memberships.userId, user.userId)
     ),
   });
 
@@ -43,8 +37,8 @@ export async function requireBotAccess(request: FastifyRequest, reply: FastifyRe
   const { botId } = request.params as { botId?: string };
   if (!botId) return;
 
-  const { db, schema } = await import("@repo/db");
-  const { eq } = await import("drizzle-orm");
+  const { db, schema, eq, and } = await import("@repo/db");
+  const user = (request as any).user as AuthUser;
 
   const bot = await db.query.bots.findFirst({
     where: eq(schema.bots.id, botId),
@@ -54,11 +48,10 @@ export async function requireBotAccess(request: FastifyRequest, reply: FastifyRe
     return reply.status(404).send({ error: "Not found", message: "Bot not found" });
   }
 
-  // Check if user is a member of the bot's org
   const membership = await db.query.memberships.findFirst({
     where: and(
       eq(schema.memberships.orgId, bot.orgId),
-      eq(schema.memberships.userId, request.user.userId)
+      eq(schema.memberships.userId, user.userId)
     ),
   });
 
@@ -68,11 +61,8 @@ export async function requireBotAccess(request: FastifyRequest, reply: FastifyRe
 }
 
 export function registerAuth(app: FastifyInstance) {
-  // PreHandler hook for JWT verification
   app.addHook("preHandler", async (request, reply) => {
-    // Skip auth for health checks
     if (request.url === "/health") return;
-    // Skip auth for auth routes (register/login)
     if (request.url.startsWith("/api/auth/")) return;
 
     await authenticate(request, reply);

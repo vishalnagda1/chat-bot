@@ -8,8 +8,9 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS dev
 COPY . .
+RUN pnpm --filter @repo/auth-middleware... build
 EXPOSE 3000
-CMD ["pnpm", "--filter", "@repo/auth", "dev"]
+CMD ["sh", "-c", "pnpm --filter @repo/auth-middleware... build && pnpm --filter @repo/auth dev"]
 
 FROM base AS build
 COPY . .

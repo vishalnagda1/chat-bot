@@ -54,6 +54,7 @@ services:
       - "3001:3000"
     volumes:
       - ./apps/auth:/app/apps/auth
+      - ./packages:/app/packages
       - /app/node_modules
     command: pnpm --filter @repo/auth dev
 
@@ -67,6 +68,7 @@ services:
       - "3002:3000"
     volumes:
       - ./apps/builder:/app/apps/builder
+      - ./packages:/app/packages
       - /app/node_modules
     command: pnpm --filter @repo/builder dev
 
@@ -84,6 +86,7 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL}
     volumes:
       - ./apps/chat-engine:/app/apps/chat-engine
+      - ./packages:/app/packages
       - /app/node_modules
     command: pnpm --filter @repo/chat-engine dev
 
@@ -97,6 +100,7 @@ services:
       - "3004:3000"
     volumes:
       - ./apps/tool-executor:/app/apps/tool-executor
+      - ./packages:/app/packages
       - /app/node_modules
     command: pnpm --filter @repo/tool-executor dev
 
@@ -110,6 +114,7 @@ services:
       - "3005:3000"
     volumes:
       - ./apps/deployment:/app/apps/deployment
+      - ./packages:/app/packages
       - /app/node_modules
     command: pnpm --filter @repo/deployment dev
 
@@ -123,6 +128,7 @@ services:
       - "3006:3000"
     volumes:
       - ./apps/analytics:/app/apps/analytics
+      - ./packages:/app/packages
       - /app/node_modules
     command: pnpm --filter @repo/analytics dev
 

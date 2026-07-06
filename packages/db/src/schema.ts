@@ -51,10 +51,10 @@ export const memberships = pgTable("memberships", {
     .notNull(),
   role: roleEnum("role").default("viewer").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("memberships_user_id_idx").on(table.userId),
-  index("memberships_org_id_idx").on(table.orgId),
-]);
+}, (table) => ({
+  userIdx: index("memberships_user_id_idx").on(table.userId),
+  orgIdx: index("memberships_org_id_idx").on(table.orgId),
+}));
 
 // API Keys table
 export const apiKeys = pgTable("api_keys", {
@@ -92,11 +92,11 @@ export const sessions = pgTable("sessions", {
   token: text("token").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("sessions_user_id_idx").on(table.userId),
-  index("sessions_token_idx").on(table.token),
-  index("sessions_expires_at_idx").on(table.expiresAt),
-]);
+}, (table) => ({
+  userIdx: index("sessions_user_id_idx").on(table.userId),
+  tokenIdx: index("sessions_token_idx").on(table.token),
+  expiresAtIdx: index("sessions_expires_at_idx").on(table.expiresAt),
+}));
 
 // Bot status enum
 export const botStatusEnum = pgEnum("bot_status", ["draft", "published"]);
@@ -130,10 +130,10 @@ export const botVersions = pgTable("bot_versions", {
   isLive: boolean("is_live").default(false),
   config: jsonb("config"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("bot_versions_bot_id_idx").on(table.botId),
-  index("bot_versions_bot_id_is_live_idx").on(table.botId, table.isLive),
-]);
+}, (table) => ({
+  botIdx: index("bot_versions_bot_id_idx").on(table.botId),
+  botLiveIdx: index("bot_versions_bot_id_is_live_idx").on(table.botId, table.isLive),
+}));
 
 // Flows table (visual flow editor)
 export const flows = pgTable("flows", {
@@ -147,9 +147,9 @@ export const flows = pgTable("flows", {
   version: integer("version").default(1),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  index("flows_bot_id_idx").on(table.botId),
-]);
+}, (table) => ({
+  botIdx: index("flows_bot_id_idx").on(table.botId),
+}));
 
 // Flow versions table (snapshots)
 export const flowVersions = pgTable("flow_versions", {
@@ -161,9 +161,9 @@ export const flowVersions = pgTable("flow_versions", {
   nodes: jsonb("nodes").default([]),
   edges: jsonb("edges").default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("flow_versions_flow_id_idx").on(table.flowId),
-]);
+}, (table) => ({
+  flowIdx: index("flow_versions_flow_id_idx").on(table.flowId),
+}));
 
 // Tools table
 export const tools = pgTable("tools", {
@@ -216,9 +216,9 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   tokens: integer("tokens"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("messages_conversation_id_idx").on(table.conversationId),
-]);
+}, (table) => ({
+  conversationIdx: index("messages_conversation_id_idx").on(table.conversationId),
+}));
 
 // Tool executions table
 export const toolExecutions = pgTable("tool_executions", {
@@ -290,11 +290,11 @@ export const events = pgTable("events", {
   eventType: varchar("event_type", { length: 100 }).notNull(),
   payload: jsonb("payload"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("events_org_id_idx").on(table.orgId),
-  index("events_bot_id_idx").on(table.botId),
-  index("events_event_type_idx").on(table.eventType),
-]);
+}, (table) => ({
+  orgIdx: index("events_org_id_idx").on(table.orgId),
+  botIdx: index("events_bot_id_idx").on(table.botId),
+  eventTypeIdx: index("events_event_type_idx").on(table.eventType),
+}));
 
 // Usage metrics table
 export const usageMetrics = pgTable("usage_metrics", {

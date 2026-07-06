@@ -16,6 +16,7 @@
     "@repo/db": "workspace:*",
     "@repo/logger": "workspace:*",
     "@repo/types": "workspace:*",
+    "@repo/auth-middleware": "workspace:*",
     "fastify": "^4.28.0",
     "@fastify/cors": "^9.0.0",
     "@fastify/jwt": "^8.0.0",

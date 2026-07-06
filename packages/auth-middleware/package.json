@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "fastify": "^4.28.0",
-    "@fastify/jwt": "^9.0.0",
+    "@fastify/jwt": "^8.0.0",
     "@repo/db": "workspace:*"
   },
   "devDependencies": {
