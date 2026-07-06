@@ -233,3 +233,47 @@ export const channelBindings = pgTable("channel_bindings", {
   status: varchar("status", { length: 20 }).default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Events table
+export const events = pgTable("events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orgId: uuid("org_id")
+    .references(() => organizations.id)
+    .notNull(),
+  botId: uuid("bot_id").references(() => bots.id),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  payload: jsonb("payload"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Usage metrics table
+export const usageMetrics = pgTable("usage_metrics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orgId: uuid("org_id")
+    .references(() => organizations.id)
+    .notNull(),
+  botId: uuid("bot_id")
+    .references(() => bots.id)
+    .notNull(),
+  metricType: varchar("metric_type", { length: 100 }).notNull(),
+  value: integer("value").notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Audit logs table
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => users.id)
+    .notNull(),
+  orgId: uuid("org_id")
+    .references(() => organizations.id)
+    .notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  resourceType: varchar("resource_type", { length: 100 }).notNull(),
+  resourceId: varchar("resource_id", { length: 255 }).notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
